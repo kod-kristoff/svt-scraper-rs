@@ -2,6 +2,12 @@ use svt_scraper::{spiders, Crawler};
 
 use clap::{Arg, Command};
 
+use std::sync::Arc;
+use std::path::PathBuf;
+
+
+const DATADIR: &str = "data";
+
 #[tokio::main]
 async fn main() {
     // Parse command line args, print help if none are given
@@ -9,21 +15,24 @@ async fn main() {
     eprintln!("args = {:?}", args);
 
     match args.command {
-        Cmd::Crawl { retry, force, debug } => {
+        Cmd::Crawl { retry, force, debug } if retry => {
             let crawler = Crawler::new();
-            if retry {
-                println!("\nTrying to crawl pages that failed last time ...");
-                if force {
-                    println!("Argument '--force' is ignored when recrawling failed pages.");
-                }
-                let spider = Arc::new(spiders::svt::SvtSpider::new(true));
-                crawler.run(spider).await;
-            } else {
-                println!("\nStarting to crawl svt.se ...");
-//             time.sleep(5)
-                let spider = Arc::new(spiders::svt::SvtSpider::new(debug));
-                crawler.run(spider).await;
+            println!("\nTrying to crawl pages that failed last time ...");
+            if force {
+                println!("Argument '--force' is ignored when recrawling failed pages.");
             }
+            let spider = Arc::new(spiders::svt::SvtSpider::new(true));
+            crawler.run(spider).await;
+
+        },
+        Cmd::Crawl { retry, force, debug }  => {
+            let crawler = Crawler::new();
+
+            println!("\nStarting to crawl svt.se ...");
+//             time.sleep(5)
+            let spider = Arc::new(spiders::svt::SvtSpider::new(debug));
+            crawler.run(spider).await;
+
         },
         Cmd::Summary => {
             println!("\nCalculating summary of collected articles ...");
@@ -37,12 +46,12 @@ async fn main() {
             println!("\nBuilding an index of crawled files based on the downloaded JSON files ...");
 //         crawled_data_from_files(args.out)
         }
-// 
-// 
+//
+//
 //     ## DEBUG STUFF
-// 
+//
 //     # SvtParser().get_article("/nyheter/inrikes/toppmote-om-arktis-i-kiruna", "inrikes")
-// 
+//
 //     # with open("data/svt-2020/konsument/28334881.json") as f:
 //     #     article_json = json.load(f)
 //     #     xml = process_article(article_json[0])
@@ -63,7 +72,7 @@ fn parse_args() -> Args {
                 .arg(
                     Arg::new("retry")
                         .short('r')
-                        .long("retry") 
+                        .long("retry")
                         .help("try to crawl pages that have failed previously")
                 )
                 .arg(
@@ -127,7 +136,7 @@ fn parse_args() -> Args {
         },
         _ => { unreachable!() }
     };
-    Args { command } 
+    Args { command }
 }
 
 #[derive(Debug)]
