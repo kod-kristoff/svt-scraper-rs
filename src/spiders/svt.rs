@@ -30,7 +30,7 @@ impl SvtSpider {
 
         let crawled_data = HashMap::new();
 
-        Self { 
+        Self {
             http_client,
             page_regex,
             crawled_data,
@@ -142,7 +142,7 @@ impl super::Spider for SvtSpider {
                     if self.crawled_data.contains_key(&short_url) {
                         eprintln!("  Article already saved, skipping remaining. Date: {:?}", content.published);
                         return Ok((items, next_pages_links));
-                    } 
+                    }
                     let short_url_str = short_url.as_str().trim_start_matches("https://www.svt.se");
                     let new_url = format!("{}/{}?q=articles", API_URL, short_url_str);
                     next_pages_links.push(new_url);
@@ -167,7 +167,7 @@ impl super::Spider for SvtSpider {
         eprintln!("spiders/svt: processing item for {}", &item);
         let article_id = item.json.get("id");
         let year = &item.json.get("published")
-            .unwrap_or_else(|| &item.json.get("modified"))
+            .unwrap_or_else(|| &item.json.get("modified"));
         // let bare_path = url_item.0.as_str().trim_start_matches("http://");
         // let bare_path = bare_path.trim_start_matches("https://");
         // let path = self.out_path.join(bare_path);

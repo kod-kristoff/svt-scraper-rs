@@ -1,6 +1,7 @@
 use svt_scraper::{spiders, Crawler};
 
 use clap::{Arg, Command};
+use log::LevelFilter;
 
 use std::sync::Arc;
 use std::path::PathBuf;
@@ -12,7 +13,11 @@ const DATADIR: &str = "data";
 async fn main() {
     // Parse command line args, print help if none are given
     let args = parse_args();
-    eprintln!("args = {:?}", args);
+    env_logger::Builder::from_default_env()
+        .filter(None, LevelFilter::Debug)
+        .format_timestamp(None)
+        .init();
+    log::debug!("args = {:?}", args);
 
     match args.command {
         Cmd::Crawl { retry, force, debug } if retry => {
