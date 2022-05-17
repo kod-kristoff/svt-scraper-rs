@@ -2,6 +2,7 @@ use crate::error::Error;
 
 use async_trait::async_trait;
 use regex::Regex;
+use serde_json::Value as JsonValue;
 
 use std::{
     collections::HashMap,
@@ -87,6 +88,10 @@ lazy_static! {
     };
 }
 
+pub struct SvtData {
+    pub topic_name: String,
+    pub json: JsonValue::Object,
+}
 #[async_trait]
 impl super::Spider for SvtSpider {
     type Item = String;

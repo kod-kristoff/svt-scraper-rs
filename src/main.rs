@@ -3,8 +3,11 @@ use svt_scraper::{spiders, Crawler};
 use clap::{Arg, Command};
 use log::LevelFilter;
 
-use std::sync::Arc;
-use std::path::PathBuf;
+use std::{
+    sync::Arc,
+    path::PathBuf,
+    time::Duration,
+};
 
 
 const DATADIR: &str = "data";
@@ -21,7 +24,7 @@ async fn main() {
 
     match args.command {
         Cmd::Crawl { retry, force, debug } if retry => {
-            let crawler = Crawler::new();
+            let crawler = Crawler::new(Duration::from_millis(200), 1, 50);
             println!("\nTrying to crawl pages that failed last time ...");
             if force {
                 println!("Argument '--force' is ignored when recrawling failed pages.");
