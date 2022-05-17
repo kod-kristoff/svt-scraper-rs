@@ -10,9 +10,9 @@ impl Crawler {
         Self {}
     }
 
-    pub async fn run(
+    pub async fn run<T: Send + Sync>(
         &self,
-        spider: Arc<dyn Spider>,
+        spider: Arc<dyn Spider<Item = T>>,
     ) {
         eprintln!("crawler: run");
         for url in spider.start_urls() {
