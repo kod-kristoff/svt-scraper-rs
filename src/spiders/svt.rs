@@ -11,7 +11,7 @@ use std::{
 
 mod domain;
 
-pub use domain::{Content, Page};
+pub use domain::{Content, Page, ArticleResponse};
 
 pub struct SvtSpider {
     http_client: reqwest::Client,
@@ -88,13 +88,15 @@ lazy_static! {
     };
 }
 
+#[derive(Clone, Debug)]
 pub struct SvtData {
     pub topic_name: String,
-    pub json: JsonValue::Object,
+    pub json: JsonValue,
 }
+
 #[async_trait]
 impl super::Spider for SvtSpider {
-    type Item = String;
+    type Item = SvtData;
 
     fn start_urls(&self) -> Vec<String> {
         let mut start_urls = Vec::new();
@@ -138,6 +140,25 @@ impl super::Spider for SvtSpider {
         let mut items = Vec::new();
 
         if url.contains("q=articles") {
+            let article: ArticleResponse = response.json().await?;
+            if article.articles.content.len() == 0 {
+                return Err(Error::Internal(format!("No data found in {}", &url)));
+            }
+            if article.articles.content.len() > 1 {
+                log::warn!("Found article with multiple content entries: {}", &url);
+            }
+            for (i, content) in article.articles.content.into_iter().enumerate() {
+                if i == 0 {
+                    items.push(
+                        SvtData {
+                            topic_name: url.clone(),
+                            json: content,
+                    });
+                } else {
+                    log::warn!("skipping multiple content: {:?}", content);
+                }
+            }
+
         } else {
             let page: Page = response.json().await?;
 
@@ -169,16 +190,22 @@ impl super::Spider for SvtSpider {
     }
 
     async fn process(&self, item: Self::Item) -> Result<(), Error> {
-        eprintln!("spiders/svt: processing item for {}", &item);
+        eprintln!("spiders/svt: processing item for {:?}", &item.topic_name);
         let article_id = item.json.get("id");
-        let year = &item.json.get("published")
-            .unwrap_or_else(|| &item.json.get("modified"));
+        // let year = if let Some(year) = item.json.get("published") {
+        //     year[..4]
+        // } else if let Some(year) = item.json.get("modified") {
+        //     year[..4]
+        // } else {
+        //    "nodate"
+        // };
+        
         // let bare_path = url_item.0.as_str().trim_start_matches("http://");
         // let bare_path = bare_path.trim_start_matches("https://");
         // let path = self.out_path.join(bare_path);
         // let path = bare_path;
         // eprintln!("spiders/svt: output path for {}: {:?}", url_item.0, path);
-        println!("{}", item);
+        println!("{:?}", item);
         Ok(())
     }
 }

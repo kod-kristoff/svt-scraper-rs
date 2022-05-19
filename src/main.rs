@@ -34,7 +34,7 @@ async fn main() {
 
         },
         Cmd::Crawl { retry, force, debug }  => {
-            let crawler = Crawler::new();
+            let crawler = Crawler::new(Duration::from_millis(200), 1, 50);
 
             println!("\nStarting to crawl svt.se ...");
 //             time.sleep(5)

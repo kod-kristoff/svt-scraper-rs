@@ -53,17 +53,13 @@ impl Crawler {
                 spider.process(item).await.expect("crawler: processing");
             }
 
-            for new_url in new_urls.into_iter() {
-                urls_to_visit.push(new_url);
-
-            }
         }
     }
 
     pub async fn run<T: Send + 'static>(
         &self,
         spider: Arc<dyn Spider<Item = T>>,
-    ) {
+    ) -> HashSet<String> {
         let mut visited_urls = HashSet::<String>::new();
         let mut failed_urls = HashSet::<String>::new();
 
@@ -104,6 +100,14 @@ impl Crawler {
 
         loop {
             if let Some((visited_url, new_urls)) = new_urls_rx.try_recv().ok() {
+                let visited_url = match visited_url {
+                    Ok(url) => url,
+                    Err(url) => {
+                        log::error!("Failed fetching url: {}", &url);
+                        failed_urls.insert(url.clone());
+                        url
+                    }
+                };
                 visited_urls.insert(visited_url);
 
                 for url in new_urls {
@@ -133,6 +137,7 @@ impl Crawler {
 
         // and then we wait for the streams to complete
         barrier.wait().await;
+        failed_urls
     }
 
     fn launch_processors<T: Send + 'static>(
@@ -158,7 +163,7 @@ impl Crawler {
         concurrency: usize,
         spider: Arc<dyn Spider<Item = T>>,
         urls_to_vist: mpsc::Receiver<String>,
-        new_urls: mpsc::Sender<(String, Vec<String>)>,
+        new_urls: mpsc::Sender<(Result<String, String>, Vec<String>)>,
         items_tx: mpsc::Sender<T>,
         active_spiders: Arc<AtomicUsize>,
         delay: Duration,
@@ -180,14 +185,17 @@ impl Crawler {
                             })
                             .ok();
 
-                        if let Some((items, new_urls)) = res {
+                        let queued_url_res = if let Some((items, new_urls)) = res {
                             for item in items {
                                 let _ = items_tx.send(item).await;
                             }
                             urls = new_urls;
-                        }
+                            Ok(queued_url)
+                        } else {
+                            Err(queued_url)
+                        };
 
-                        let _ = new_urls.send((queued_url, urls)).await;
+                        let _ = new_urls.send((queued_url_res, urls)).await;
                         sleep(delay).await;
                         active_spiders.fetch_sub(1, Ordering::SeqCst);
                     }

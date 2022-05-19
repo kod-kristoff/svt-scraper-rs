@@ -1,4 +1,4 @@
-
+use serde_json::Value as JsonValue;
 
 #[derive(serde::Deserialize, Debug)]
 pub struct Page {
@@ -22,6 +22,16 @@ pub struct Content {
 #[serde(rename_all = "camelCase")]
 pub struct Pagination {
     pub total_available_items: u32,
+}
+
+#[derive(serde::Deserialize, Debug)]
+pub struct ArticleResponse {
+    pub articles: Articles,
+}
+
+#[derive(serde::Deserialize, Debug)]
+pub struct Articles {
+    pub content: Vec<JsonValue>,
 }
 
 #[cfg(test)]
