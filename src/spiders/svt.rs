@@ -129,12 +129,12 @@ impl super::Spider for SvtSpider {
     }
 
     async fn scrape(&self, url: String) -> Result<(Vec<Self::Item>, Vec<String>), Error> {
-        eprintln!("spiders/svt: scraping {}", &url);
+        log::debug!("spiders/svt: scraping {}", &url);
         let response = self.http_client
             .get(&url)
             .send()
             .await?;
-        eprintln!("Status for {}: {}", &url, response.status());
+        log::info!("Status for {}: {}", &url, response.status());
 
         let mut next_pages_links = Vec::new();
         let mut items = Vec::new();
@@ -164,13 +164,13 @@ impl super::Spider for SvtSpider {
 
             for content in page.auto.content {
                 if let Some(short_url) = content.url {
-                    eprintln!("spiders/svt: short_url = {}", &short_url);
+                    log::debug!("spiders/svt: short_url = {}", &short_url);
                     if self.crawled_data.contains_key(&short_url) {
-                        eprintln!("  Article already saved, skipping remaining. Date: {:?}", content.published);
+                        log::debug!("  Article already saved, skipping remaining. Date: {:?}", content.published);
                         return Ok((items, next_pages_links));
                     }
                     let short_url_str = short_url.as_str().trim_start_matches("https://www.svt.se");
-                    let new_url = format!("{}/{}?q=articles", API_URL, short_url_str);
+                    let new_url = format!("{}{}?q=articles", API_URL, short_url_str);
                     next_pages_links.push(new_url);
                 }
             }
