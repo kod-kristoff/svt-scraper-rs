@@ -3,9 +3,12 @@ use crate::error::Error;
 use async_trait::async_trait;
 use regex::Regex;
 use serde_json::Value as JsonValue;
+use tokio::fs as tokio_fs;
 
 use std::{
+    fs,
     collections::HashMap,
+    path::PathBuf,
     time::Duration,
 };
 
@@ -16,24 +19,32 @@ pub use domain::{Content, Page, ArticleResponse};
 pub struct SvtSpider {
     http_client: reqwest::Client,
     page_regex: Regex,
+    topic_regex: Regex,
+    out_path: PathBuf,
     crawled_data: HashMap<String, (String, i32, String)>,
 }
 
 impl SvtSpider {
-    pub fn new(_debug: bool) -> Self {
+    pub fn new(
+        out_path: PathBuf,
+    ) -> Self {
         let http_client = reqwest::Client::builder()
             .timeout(Duration::from_secs(6))
             .build()
             .expect("spiders/svt: Building HTTP client");
 
-        let page_regex =
-            Regex::new(".*page=([0-9]*).*").expect("spiders/svt: Compiling page regex");
+        let page_regex = Regex::new(".*page=([0-9]*).*")
+            .expect("spiders/svt: Compiling page regex");
 
+        let topic_regex = Regex::new(".*/([a-z0-9]+)/.*")
+            .expect("spiders/svt: Compiling topic regex");
         let crawled_data = HashMap::new();
 
         Self {
             http_client,
             page_regex,
+            topic_regex,
+            out_path,
             crawled_data,
         }
     }
@@ -147,11 +158,13 @@ impl super::Spider for SvtSpider {
             if article.articles.content.len() > 1 {
                 log::warn!("Found article with multiple content entries: {}", &url);
             }
+            let captures = self.topic_regex.captures(&url).unwrap();
+            let topic_name = captures.get(1).unwrap().as_str().to_string();
             for (i, content) in article.articles.content.into_iter().enumerate() {
                 if i == 0 {
                     items.push(
                         SvtData {
-                            topic_name: url.clone(),
+                            topic_name: topic_name.clone(),
                             json: content,
                     });
                 } else {
@@ -190,22 +203,46 @@ impl super::Spider for SvtSpider {
     }
 
     async fn process(&self, item: Self::Item) -> Result<(), Error> {
-        eprintln!("spiders/svt: processing item for {:?}", &item.topic_name);
-        let article_id = item.json.get("id");
-        // let year = if let Some(year) = item.json.get("published") {
-        //     year[..4]
-        // } else if let Some(year) = item.json.get("modified") {
-        //     year[..4]
-        // } else {
-        //    "nodate"
-        // };
+        log::info!("spiders/svt: processing item for {:?}", &item.topic_name);
+        let article_id = item.json.get("id").ok_or_else(
+            || {
+                log::error!("missing id. data: {:?}", &item);
+                Error::BadData("missing id".to_string())
+            })?;
+        log::debug!("article_id = {:?}", article_id);
+        log::debug!("{:?}", item.json.get("published"));
+        log::debug!("{:?}", item.json.get("modified"));
+        let year: &str = if let Some(JsonValue::String(year)) = item.json.get("published") {
+            &year[..4]
+        } else if let Some(JsonValue::String(year)) = item.json.get("modified") {
+            &year[..4]
+        } else {
+           "0"
+        };
+        log::debug!("year = {}", year);
+
+        let year: &str = if year < "2004" {
+            "nodate"
+        } else if year > "2022" {
+            log::warn!("found future date '{}'. article_id: {}", year, article_id);
+            "nodate"
+        } else {
+            year
+        };
         
         // let bare_path = url_item.0.as_str().trim_start_matches("http://");
         // let bare_path = bare_path.trim_start_matches("https://");
-        // let path = self.out_path.join(bare_path);
-        // let path = bare_path;
+        let path = self.out_path
+            .join(format!("svt-{}", year))
+            .join(&item.topic_name);
+
+        log::info!("creating dir: {:?}", &path);
+        tokio_fs::create_dir_all(&path).await?;
+        let path = path.join(format!("{}.json", article_id));
+        let mut file = fs::File::create(path)?;
+        serde_json::to_writer(file, &item.json)?;
         // eprintln!("spiders/svt: output path for {}: {:?}", url_item.0, path);
-        println!("{:?}", item);
+        // println!("{:?}", item);
         Ok(())
     }
 }

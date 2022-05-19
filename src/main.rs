@@ -23,24 +23,23 @@ async fn main() {
     log::debug!("args = {:?}", args);
 
     match args.command {
-        Cmd::Crawl { retry, force, debug } if retry => {
+        Cmd::Crawl { retry, force, _ } => {
             let crawler = Crawler::new(Duration::from_millis(200), 1, 50);
-            println!("\nTrying to crawl pages that failed last time ...");
             if force {
-                println!("Argument '--force' is ignored when recrawling failed pages.");
+                println!("\nTrying to crawl pages that failed last time ...");
+                if force {
+                    println!("Argument '--force' is ignored when recrawling failed pages.");
+                }
+            } else {
+                println!("\nStarting to crawl svt.se ...");
             }
-            let spider = Arc::new(spiders::svt::SvtSpider::new(true));
-            crawler.run(spider).await;
-
-        },
-        Cmd::Crawl { retry, force, debug }  => {
-            let crawler = Crawler::new(Duration::from_millis(200), 1, 50);
-
-            println!("\nStarting to crawl svt.se ...");
-//             time.sleep(5)
-            let spider = Arc::new(spiders::svt::SvtSpider::new(debug));
-            crawler.run(spider).await;
-
+            let spider = Arc::new(
+                spiders::svt::SvtSpider::new(
+                    PathBuf::from(DATADIR)
+                )
+            );
+            let failed = crawler.run(spider).await;
+            println!("failed: {:?}", failed);
         },
         Cmd::Summary => {
             println!("\nCalculating summary of collected articles ...");
